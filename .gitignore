@@ -1,3 +1,4 @@
 .sbtopts
 target/
 project/project
+.idea
