@@ -4,7 +4,7 @@ version := "0.1"
 
 scalaVersion := "2.12.8"
 
-libraryDependencies ++= Seq("org.scalaz" %% "scalaz-zio" % "0.2.6") ++ spec
+libraryDependencies ++= Seq("org.scalaz" %% "scalaz-zio" % "1.0-RC3") ++ spec
 
 lazy val spec = Seq(
   "org.specs2" %% "specs2-core" % "4.3.2" % Test,
