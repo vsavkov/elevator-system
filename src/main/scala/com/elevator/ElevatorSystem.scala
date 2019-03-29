@@ -1,8 +1,9 @@
 package com.elevator
 
+import scalaz.zio
 import scalaz.zio._
-
-import scala.concurrent.duration._
+import scalaz.zio.duration._
+import scalaz.zio.clock._
 
 final case class ElevatorState(floor: Int, stops: Set[Int]) { current =>
   def step: Option[ElevatorState] = {
@@ -51,12 +52,12 @@ final class ElevatorSystem(elevators: Ref[Vector[ElevatorState]],
     * 3. add the next stops to the selected elevator and update the elevator state
     * 4. consume (listen) every incoming request
     */
-  def run(duration: Duration): IO[Nothing, Unit] = {
-    val moveElevator: IO[Nothing, Unit] = elevators
+  def run(duration: Duration): ZIO[Clock, Nothing, Unit] = {
+    val moveElevator: ZIO[Clock, Nothing, Unit] = elevators
       .update(ElevatorSystem.step)
-      .repeat(Schedule.fixed(duration))
+      .repeat(Schedule.spaced(duration))
       .void
-    val processRequests: IO[Nothing, Unit] = (for {
+    val processRequests: ZIO[Clock, Nothing, Unit] = (for {
       request <- requests.take
       _ <- elevators.update { state =>
         ElevatorSystem.search(state, request) match {
@@ -79,7 +80,7 @@ final class ElevatorSystem(elevators: Ref[Vector[ElevatorState]],
     * the pickupRequest contains the floor and the direction
     * adds a new request asynchronously (we need to run it concurrently by calling system.request.fork
     */
-  def request(pickupRequest: PickupRequest): IO[Nothing, Unit] =
+  def request(pickupRequest: PickupRequest): zio.IO[Nothing, Boolean] =
     requests.offer(pickupRequest)
 
   /**
@@ -105,7 +106,7 @@ object ElevatorSystem {
   def apply(elevators: Vector[ElevatorState]): IO[Nothing, ElevatorSystem] = {
     for {
       queue <- Queue.bounded[PickupRequest](elevators.length)
-      state <- Ref(elevators)
+      state <- Ref.make(elevators)
     } yield new ElevatorSystem(state, queue)
   }
 

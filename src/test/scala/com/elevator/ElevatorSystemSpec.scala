@@ -4,11 +4,11 @@ import org.specs2.Specification
 import org.specs2.concurrent.ExecutionEnv
 import org.specs2.specification.AroundTimeout
 
+import scalaz.zio.{ZIO, IO, Schedule, DefaultRuntime}
+import scalaz.zio.duration._
 
-import scala.concurrent.duration._
-import scalaz.zio.{IO, RTS, Schedule}
+class ElevatorSystemSpec(implicit ee: ExecutionEnv) extends Specification with AroundTimeout {
 
-class ElevatorSystemSpec(implicit ee: ExecutionEnv) extends Specification with RTS with AroundTimeout {
   def is = "ElevatorSystemSpec".title ^ s2"""
 
      make an Elevator System and check if:
@@ -18,9 +18,9 @@ class ElevatorSystemSpec(implicit ee: ExecutionEnv) extends Specification with R
 
     `query` query the state of the elevator                                                     $e4
     `request` add a pick-up request in Elevator state                                           $e5
-    `run` must run all requests and move the elevators to their next stops                      ${upTo(30.seconds)(e6)}
-    `run` must run all pick-up requests                                                         ${upTo(30.seconds)(e7)}
-    `run` must run all pick-up requests even if the requests are more than the elevator number  ${upTo(30.seconds)(e8)}
+    `run` must run all requests and move the elevators to their next stops                      ${upTo(30.seconds.asScala)(e6)}
+    `run` must run all pick-up requests                                                         ${upTo(30.seconds.asScala)(e7)}
+    `run` must run all pick-up requests even if the requests are more than the elevator number  ${upTo(30.seconds.asScala)(e8)}
 
     """
 
@@ -67,7 +67,7 @@ class ElevatorSystemSpec(implicit ee: ExecutionEnv) extends Specification with R
                            ElevatorState(2, Set(0)),
                            ElevatorState(7, Set(4)),
                            ElevatorState(2, Set(3, 4)))
-    unsafeRun(
+    new DefaultRuntime {}.unsafeRun(
       for {
         system <- ElevatorSystem(elevators)
         r <- system.query
@@ -80,7 +80,7 @@ class ElevatorSystemSpec(implicit ee: ExecutionEnv) extends Specification with R
                            ElevatorState(7, Set(4)),
                            ElevatorState(2, Set(3, 4)))
     val request = PickupRequest(2, 1)
-    unsafeRun(
+    new DefaultRuntime {}.unsafeRun(
       for {
         system <- ElevatorSystem(elevators)
         sizeBefore <- system.requestCount
@@ -96,11 +96,11 @@ class ElevatorSystemSpec(implicit ee: ExecutionEnv) extends Specification with R
     val request = PickupRequest(1, 0)
     val finalState =
       Vector(ElevatorState(0, Set.empty), ElevatorState(15, Set.empty))
-    unsafeRun(
+    new DefaultRuntime {}.unsafeRun(
       (for {
         system <- ElevatorSystem(elevators)
         _ <- system.request(request).fork
-        _ <- system.run(1.millis).fork *> IO.sleep(300.millis)
+        _ <- system.run(1.millis).fork *> ZIO.sleep(300.millis)
         _ <- system.requestCount
           .repeat(Schedule.doUntil(_ <= 0)) //the request will be consumed and we will have a suspended consumer waiting for producers (size will be negative)
         state <- system.query.repeat(Schedule.doUntil(
@@ -115,7 +115,7 @@ class ElevatorSystemSpec(implicit ee: ExecutionEnv) extends Specification with R
     val request = PickupRequest(7, 15)
     val finalState =
       Vector(ElevatorState(1, Set.empty), ElevatorState(15, Set.empty))
-    unsafeRun(
+    new DefaultRuntime {}.unsafeRun(
       (for {
         system <- ElevatorSystem(elevators)
         _ <- system.run(1.second).fork
@@ -133,7 +133,7 @@ class ElevatorSystemSpec(implicit ee: ExecutionEnv) extends Specification with R
       Vector(ElevatorState(1, Set.empty), ElevatorState(6, Set(10, 13, 14)))
     val requests =
       List(PickupRequest(7, 15), PickupRequest(2, 3), PickupRequest(15, 0))
-    unsafeRun(
+    new DefaultRuntime {}.unsafeRun(
       (for {
         system <- ElevatorSystem(elevators)
         _ <- IO.forkAll(requests.map(system.request))
